@@ -1,0 +1,22 @@
+COMP30023 2025 - Project 1
+
+./translate -f cases/task1/spec.txt -t task1 | diff - cases/task1/spec.out
+./translate -f cases/task1/spec-mask.txt -t task1 | diff - cases/task1/spec-mask.out
+./translate -f cases/task1/bound.txt -t task1 | diff - cases/task1/bound.out
+
+./translate -f cases/task1/spec.txt -t task2 | diff - cases/task2/spec.out
+./translate -f cases/task1/spec-mask.txt -t task2 | diff - cases/task2/spec-mask.out
+./translate -f cases/task1/bound.txt -t task2 | diff - cases/task2/bound.out
+./translate -f cases/task2/same.txt -t task2 | diff - cases/task2/same.out
+./translate -f cases/task2/3page.txt -t task2 | diff - cases/task2/3page.out
+./translate -f cases/task2/255.txt -t task2 | diff - cases/task2/255.out
+./translate -f cases/task2/255-more.txt -t task2 | diff - cases/task2/255-more.out
+
+./translate -f cases/task3/spec2.txt -t task3 | diff - cases/task3/spec2.out
+./translate -f cases/task3/512.txt -t task3 | diff - cases/task3/512.out
+./translate -f cases/task3/loop.txt -t task3 | diff - cases/task3/loop.out
+
+./translate -f cases/task4/basic.txt -t task4 | diff - cases/task4/basic.out
+./translate -f cases/task2/3page.txt -t task4 | diff - cases/task4/3page.out
+./translate -f cases/task4/lru.txt -t task4 | diff - cases/task4/lru.out
+./translate -f cases/task3/spec2.txt -t task4 | diff - cases/task4/spec2.out

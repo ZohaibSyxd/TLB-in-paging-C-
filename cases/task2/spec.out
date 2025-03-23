@@ -1,0 +1,6 @@
+logical-address=30023,page-number=7,offset=1351
+page-number=7,page-fault=1,frame-number=0,physical-address=1351
+logical-address=10001,page-number=2,offset=1809
+page-number=2,page-fault=1,frame-number=1,physical-address=5905
+logical-address=20007,page-number=4,offset=3623
+page-number=4,page-fault=1,frame-number=2,physical-address=11815
