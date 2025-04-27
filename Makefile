@@ -1,7 +1,14 @@
-EXE=translate
+CC = gcc
+CFLAGS = -Wall -Werror -g -O3
+TARGET = translate
 
-$(EXE): main.c
-	cc -O3 -Wall -o $(EXE) $<
+all: $(TARGET)
+
+$(TARGET): main.c
+	$(CC) $(CFLAGS) -o $(TARGET) main.c
 
 format:
 	clang-format -style=file -i *.c
+
+clean:
+	rm -f $(TARGET)

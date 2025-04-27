@@ -23,19 +23,19 @@ int main(int argc, char*argv[]){
     }
     
     char *input_filename = NULL;
-    int task_number = 0;
+    char *task_name = 0;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-f") == 0) {
             input_filename = argv[++i];
         } else if (strcmp(argv[i], "-t") == 0) {
-            task_number = atoi(argv[++i]);
+            task_name = argv[++i];
         } else {
             return 1;
         }
     }
 
-    if (input_filename == NULL || task_number < 1 || task_number > 4) {
+    if (input_filename == NULL || task_name == NULL) {
         return EXIT_FAILURE;
     }
 
@@ -45,16 +45,14 @@ int main(int argc, char*argv[]){
         return 1;
     }
 
-    switch (task_number) {
-        case 1:
-            task1(fp);
-            break;
-        case 2:
-            task2(fp);
-            break;
-        default:
-            fprintf(stderr, "Invalid task number.\n");
-            break;
+    if (strcmp(task_name, "task1") == 0) {
+        task1(fp);
+    } else if (strcmp(task_name, "task2") == 0) {
+        task2(fp);
+    } else {
+        fprintf(stderr, "Invalid task name.\n");
+        fclose(fp);
+        return EXIT_FAILURE;
     }
 
     fclose(fp);
@@ -112,7 +110,7 @@ void task2(FILE *fp) {
         // - Shift left by 12 bits
         // - Add the offset into the lower 12 bits of the address
         unsigned int physical_address = (frame_number << OFFSET_BITS) | offset;
-        
+
         printf("page-number=%u,page-fault=%d,frame-number=%u,physical-address=%u\n",
                page_number, page_fault, frame_number, physical_address);
     }
