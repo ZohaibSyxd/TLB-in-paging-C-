@@ -69,7 +69,7 @@ void task1(FILE *fp) {
     while (fscanf(fp, "%u", &address) == 1) {
         parse_logical_address(address, &page_number, &offset);
         // Print the parsed logical address information
-        printf("Logical Address=%u,page-number=%u,offset=%u\n", address, page_number, offset);
+        printf("logical Address=%u,page-number=%u,offset=%u\n", address, page_number, offset);
     }
 }
 
