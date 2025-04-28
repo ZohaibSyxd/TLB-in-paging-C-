@@ -6,10 +6,12 @@
 #define PAGE_NUMBER_MASK 0x3FF
 #define PAGE_TABLE_SIZE 1024
 #define OFFSET_BITS 12
+#define MAX_FRAMES 256
 
 void parse_logical_address(unsigned int logical_address, unsigned int *page_number, unsigned int *offset);
 void task1(FILE *fp);
 void task2(FILE *fp);
+void task3(FILE *fp);
 
 typedef struct {
     int present;
@@ -49,6 +51,8 @@ int main(int argc, char*argv[]){
         task1(fp);
     } else if (strcmp(task_name, "task2") == 0) {
         task2(fp);
+    } else if (strcmp(task_name, "task3") == 0) {
+        task3(fp);
     } else {
         fprintf(stderr, "Invalid task name.\n");
         fclose(fp);
@@ -109,6 +113,67 @@ void task2(FILE *fp) {
         // Extract the physical address:
         // - Shift left by 12 bits
         // - Add the offset into the lower 12 bits of the address
+        unsigned int physical_address = (frame_number << OFFSET_BITS) | offset;
+
+        printf("page-number=%u,page-fault=%d,frame-number=%u,physical-address=%u\n",
+               page_number, page_fault, frame_number, physical_address);
+    }
+}
+
+#define MAX_FRAMES 256
+
+void task3(FILE *fp) {
+    page_table_entry_t page_table[PAGE_TABLE_SIZE] = {0}; 
+    unsigned int page_order[MAX_FRAMES];     // simple FIFO queue: stores pages in order loaded
+    unsigned int head = 0, tail = 0;          // indices for FIFO
+
+    unsigned int next_free_frame = 0;
+    unsigned int address;
+    unsigned int page_number;
+    unsigned int offset;
+
+    while (fscanf(fp, "%u", &address) == 1) {
+        parse_logical_address(address, &page_number, &offset);
+        printf("logical-address=%u,page-number=%u,offset=%u\n", address, page_number, offset);
+
+        int page_fault = 0;
+        unsigned int frame_number;
+
+        if (page_table[page_number].present) {
+            // Page hit
+            frame_number = page_table[page_number].frame_number;
+            page_fault = 0;
+        } else {
+            // Page fault
+            page_fault = 1;
+
+            if (next_free_frame < MAX_FRAMES) {
+                // Free frames available
+                frame_number = next_free_frame;
+                page_table[page_number].present = 1;
+                page_table[page_number].frame_number = frame_number;
+                page_order[tail] = page_number;
+                tail = (tail + 1) % MAX_FRAMES;
+                next_free_frame++;
+            } else {
+                // No free frames: FIFO eviction
+                unsigned int page_to_evict = page_order[head];
+                head = (head + 1) % MAX_FRAMES;
+                unsigned int evicted_frame = page_table[page_to_evict].frame_number;
+
+                // Eviction happens here:
+                printf("evicted-page=%u,freed-frame=%u\n", page_to_evict, evicted_frame);
+
+                page_table[page_to_evict].present = 0;
+
+                frame_number = evicted_frame;
+                page_table[page_number].present = 1;
+                page_table[page_number].frame_number = frame_number;
+                page_order[tail] = page_number;
+                tail = (tail + 1) % MAX_FRAMES;
+            }
+        }
+
         unsigned int physical_address = (frame_number << OFFSET_BITS) | offset;
 
         printf("page-number=%u,page-fault=%d,frame-number=%u,physical-address=%u\n",
