@@ -259,12 +259,26 @@ void task4(FILE *fp) {
                     page_table[page_to_evict].present = 0; // mark evicted page as not present
 
                     // --- TLB flush: Remove evicted page from TLB if present ---
+                    int flushed = 0;
                     for (int i = 0; i < TLB_SIZE; i++) {
                         if (tlb[i].valid && tlb[i].page_number == page_to_evict) {
                             tlb[i].valid = 0; // Invalidate TLB entry
+                            flushed = 1;
                             break;
                         }
                     }
+
+                    // If we flushed, print tlb-flush message
+                    if (flushed) {
+                        int tlb_valid_entries = 0;
+                        for (int i = 0; i < TLB_SIZE; i++) {
+                            if (tlb[i].valid) {
+                                tlb_valid_entries++;
+                            }
+                        }
+                        printf("tlb-flush=%u,tlb-size=%d\n", page_to_evict, tlb_valid_entries);
+                    }
+
 
                     // Load new page into freed frame
                     frame_number = evicted_frame;
