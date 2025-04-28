@@ -1,0 +1,7 @@
+# Ignore build files
+*.o
+*.exe
+
+# Ignore editor files
+.vscode/
+.idea/
