@@ -7,17 +7,25 @@
 #define PAGE_TABLE_SIZE 1024
 #define OFFSET_BITS 12
 #define MAX_FRAMES 256
+#define TLB_SIZE 32
 
 void parse_logical_address(unsigned int logical_address, unsigned int *page_number, unsigned int *offset);
 void task1(FILE *fp);
 void task2(FILE *fp);
 void task3(FILE *fp);
+void task4(FILE *fp);
 
 typedef struct {
     int present;
     unsigned int frame_number;
 } page_table_entry_t;
 
+typedef struct {
+    int valid;
+    unsigned int page_number;
+    unsigned int frame_number;
+    unsigned long last_used_time; // to implement LRU
+} tlb_entry_t;
 
 int main(int argc, char*argv[]){
     if (argc != 5) {
@@ -25,7 +33,7 @@ int main(int argc, char*argv[]){
     }
     
     char *input_filename = NULL;
-    char *task_name = 0;
+    char *task_name = NULL;
 
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "-f") == 0) {
@@ -53,10 +61,12 @@ int main(int argc, char*argv[]){
         task2(fp);
     } else if (strcmp(task_name, "task3") == 0) {
         task3(fp);
+    } else if (strcmp(task_name, "task4") == 0) {
+        task4(fp);
     } else {
         fprintf(stderr, "Invalid task name.\n");
         fclose(fp);
-        return EXIT_FAILURE;
+        return EXIT_FAILURE; // Exit if invalid task
     }
 
     fclose(fp);
@@ -93,7 +103,7 @@ void task2(FILE *fp) {
         parse_logical_address(address, &page_number, &offset);
         printf("logical-address=%u,page-number=%u,offset=%u\n", address, page_number, offset);
 
-        // Assume no page fault initialy
+        // Assume no page fault (for now)
         int page_fault = 0;
         unsigned int frame_number;
 
@@ -126,7 +136,7 @@ void task3(FILE *fp) {
     page_table_entry_t page_table[PAGE_TABLE_SIZE] = {0};   // Initialize all entries to {0, 0}
     unsigned int page_order[MAX_FRAMES];    // Circular FIFO queue to track the order pages are loaded
     
-    // head and tail pointers for the FIFO queue
+    // FIFO pointers
     unsigned int head = 0;
     unsigned int tail = 0;
 
@@ -185,11 +195,133 @@ void task3(FILE *fp) {
         // - Add the offset into the lower 12 bits of the address
         unsigned int physical_address = (frame_number << OFFSET_BITS) | offset;
 
-        // Print page translation and result
+        // Output result
         printf("page-number=%u,page-fault=%d,frame-number=%u,physical-address=%u\n",
                page_number, page_fault, frame_number, physical_address);
     }
 }
+
+void task4(FILE *fp) {
+    page_table_entry_t page_table[PAGE_TABLE_SIZE] = {0}; // page table
+    unsigned int page_order[MAX_FRAMES]; // FIFO queue for page replacement
+    unsigned int head = 0, tail = 0;     // FIFO pointers
+    unsigned int next_free_frame = 0;
+
+    tlb_entry_t tlb[TLB_SIZE] = {0}; // Initialize TLB
+    unsigned long time_counter = 0;  // Global time counter for LRU
+
+    unsigned int address, page_number, offset;
+
+    while (fscanf(fp, "%u", &address) == 1) {
+        time_counter++; // Increase time on each memory access
+        parse_logical_address(address, &page_number, &offset);
+        printf("logical-address=%u,page-number=%u,offset=%u\n", address, page_number, offset);
+
+        int tlb_hit = 0;
+        int page_fault = 0;
+        unsigned int frame_number = 0;
+
+        // === TLB Lookup ===
+        for (int i = 0; i < TLB_SIZE; i++) {
+            if (tlb[i].valid && tlb[i].page_number == page_number) {
+                tlb_hit = 1;
+                frame_number = tlb[i].frame_number;
+                tlb[i].last_used_time = time_counter; // Update usage time for LRU
+                break;
+            }
+        }
+
+        if (!tlb_hit) {
+            // === Page Table Lookup ===
+            if (page_table[page_number].present) {
+                frame_number = page_table[page_number].frame_number;
+            } else {
+                page_fault = 1;
+
+                if (next_free_frame < MAX_FRAMES) {
+                    // Free frame available
+                    frame_number = next_free_frame;
+                    page_table[page_number].present = 1;
+                    page_table[page_number].frame_number = frame_number;
+                    page_order[tail] = page_number;
+                    tail = (tail + 1) % MAX_FRAMES;
+                    next_free_frame++;
+                } else {
+                    // No free frames, perform FIFO page replacement
+                    unsigned int page_to_evict = page_order[head];
+                    head = (head + 1) % MAX_FRAMES;
+                    unsigned int evicted_frame = page_table[page_to_evict].frame_number;
+                    printf("evicted-page=%u,freed-frame=%u\n", page_to_evict, evicted_frame);
+
+                    page_table[page_to_evict].present = 0; // mark evicted page as not present
+
+                    // --- TLB flush: Remove evicted page from TLB if present ---
+                    for (int i = 0; i < TLB_SIZE; i++) {
+                        if (tlb[i].valid && tlb[i].page_number == page_to_evict) {
+                            tlb[i].valid = 0; // Invalidate TLB entry
+                            break;
+                        }
+                    }
+
+                    // Load new page into freed frame
+                    frame_number = evicted_frame;
+                    page_table[page_number].present = 1;
+                    page_table[page_number].frame_number = frame_number;
+                    page_order[tail] = page_number;
+                    tail = (tail + 1) % MAX_FRAMES;
+                }
+            }
+
+            // === TLB Update: Insert new page-frame mapping ===
+            int empty_index = -1;
+            int lru_index = 0;
+            unsigned long lru_time = __LONG_MAX__; // Initialize to max value
+
+            for (int i = 0; i < TLB_SIZE; i++) {
+                if (!tlb[i].valid && empty_index == -1) {
+                    empty_index = i;
+                } else if (tlb[i].valid && tlb[i].last_used_time < lru_time) {
+                    lru_time = tlb[i].last_used_time;
+                    lru_index = i;
+                }
+            }
+
+            int index_to_replace = (empty_index != -1) ? empty_index : lru_index;
+
+            tlb[index_to_replace].valid = 1;
+            tlb[index_to_replace].page_number = page_number;
+            tlb[index_to_replace].frame_number = frame_number;
+            tlb[index_to_replace].last_used_time = time_counter;
+        }
+
+        // === Physical Address ===
+        unsigned int physical_address = (frame_number << OFFSET_BITS) | offset;
+
+        // === Correct Output Section ===
+
+        // Step 1: TLB Lookup Result
+        if (tlb_hit) {
+            printf("tlb-hit=1,page-number=%u,frame=%u,physical-address=%u\n", page_number, frame_number, physical_address);
+        } else {
+            printf("tlb-hit=0,page-number=%u,frame=none,physical-address=none\n", page_number);
+        }
+
+        // Step 2: TLB Remove/Add
+        if (!tlb_hit) {
+            printf("tlb-remove=none,tlb-add=%u\n", page_number);
+        }
+
+        // Step 3: Page Table and Page Fault Result
+        if (!tlb_hit) {  // Only print this if TLB was a miss
+            if (page_fault) {
+                printf("page-number=%u,page-fault=1,frame-number=%u,physical-address=%u\n", page_number, frame_number, physical_address);
+            } else {
+                printf("page-number=%u,page-fault=0,frame-number=%u,physical-address=%u\n", page_number, frame_number, physical_address);
+            }
+        }
+    }
+}
+
 
 
 // Function to parse a logical address into page number and offset
