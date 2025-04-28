@@ -201,48 +201,54 @@ void task3(FILE *fp) {
     }
 }
 
+// === TASK 3 ===
+// TLB implementation
 void task4(FILE *fp) {
-    page_table_entry_t page_table[PAGE_TABLE_SIZE] = {0}; // page table
-    unsigned int page_order[MAX_FRAMES]; // FIFO queue for page replacement
-    unsigned int head = 0, tail = 0;     // FIFO pointers
-    unsigned int next_free_frame = 0;
+    // set up page table and tlb
+    page_table_entry_t page_table[PAGE_TABLE_SIZE] = {0};
+    tlb_entry_t tlb[TLB_SIZE] = {0};
 
-    tlb_entry_t tlb[TLB_SIZE] = {0}; // Initialize TLB
-    unsigned long time_counter = 0;  // Global time counter for LRU
+    unsigned int page_order[MAX_FRAMES]; // for FIFO page replacement
+    unsigned int head = 0, tail = 0;     
+    unsigned int next_free_frame = 0;    // first free frame index
+
+    unsigned long time_counter = 0;      // for LRU in tlb
 
     unsigned int address, page_number, offset;
 
+    // read each address from file
     while (fscanf(fp, "%u", &address) == 1) {
-        time_counter++; // Increase time on each memory access
+        time_counter++; 
         parse_logical_address(address, &page_number, &offset);
+
         printf("logical-address=%u,page-number=%u,offset=%u\n", address, page_number, offset);
 
         int tlb_hit = 0;
         int page_fault = 0;
         unsigned int frame_number = 0;
 
-        // === TLB Lookup ===
+        // try to find it in the tlb first
         for (int i = 0; i < TLB_SIZE; i++) {
             if (tlb[i].valid && tlb[i].page_number == page_number) {
                 tlb_hit = 1;
                 frame_number = tlb[i].frame_number;
-                tlb[i].last_used_time = time_counter; // Update usage time for LRU
+                tlb[i].last_used_time = time_counter;
                 break;
             }
         }
 
-        int evicting = 0;           // Whether we evicted an entry in TLB
-        unsigned int evicted_page = 0; // Evicted page number
+        int evicting = 0;
+        unsigned int evicted_page = 0;
 
         if (!tlb_hit) {
-            // === Page Table Lookup ===
+            // not in tlb, check the page table
             if (page_table[page_number].present) {
                 frame_number = page_table[page_number].frame_number;
             } else {
-                page_fault = 1;
+                page_fault = 1; // page fault occured
 
                 if (next_free_frame < MAX_FRAMES) {
-                    // Free frame available
+                    // there's still free frames left
                     frame_number = next_free_frame;
                     page_table[page_number].present = 1;
                     page_table[page_number].frame_number = frame_number;
@@ -250,38 +256,35 @@ void task4(FILE *fp) {
                     tail = (tail + 1) % MAX_FRAMES;
                     next_free_frame++;
                 } else {
-                    // No free frames, perform FIFO page replacement
+                    // no free frames, gotta evict using FIFO
                     unsigned int page_to_evict = page_order[head];
                     head = (head + 1) % MAX_FRAMES;
                     unsigned int evicted_frame = page_table[page_to_evict].frame_number;
+
                     printf("evicted-page=%u,freed-frame=%u\n", page_to_evict, evicted_frame);
 
-                    page_table[page_to_evict].present = 0; // mark evicted page as not present
+                    page_table[page_to_evict].present = 0; // mark as not present anymore
 
-                    // --- TLB flush: Remove evicted page from TLB if present ---
+                    // flush it from tlb too if it's there
                     int flushed = 0;
                     for (int i = 0; i < TLB_SIZE; i++) {
                         if (tlb[i].valid && tlb[i].page_number == page_to_evict) {
-                            tlb[i].valid = 0; // Invalidate TLB entry
+                            tlb[i].valid = 0;
                             flushed = 1;
                             break;
                         }
                     }
 
-                    // If we flushed, print tlb-flush message
                     if (flushed) {
-                        int tlb_valid_entries = 0;
+                        int valid_entries = 0;
                         for (int i = 0; i < TLB_SIZE; i++) {
-                            if (tlb[i].valid) {
-                                tlb_valid_entries++;
-                            }
+                            if (tlb[i].valid) valid_entries++;
                         }
-                        printf("tlb-flush=%u,tlb-size=%d\n", page_to_evict, tlb_valid_entries);
+                        printf("tlb-flush=%u,tlb-size=%d\n", page_to_evict, valid_entries);
                         fflush(stdout);
                     }
 
-
-                    // Load new page into freed frame
+                    // bring in new page into freed frame
                     frame_number = evicted_frame;
                     page_table[page_number].present = 1;
                     page_table[page_number].frame_number = frame_number;
@@ -290,39 +293,39 @@ void task4(FILE *fp) {
                 }
             }
 
-            // === TLB Update: Insert new page-frame mapping ===
-            int empty_index = -1;
+            // now update the TLB
+            int empty_slot = -1;
             int lru_index = 0;
-            unsigned long lru_time = __LONG_MAX__; // Initialize to max value
+            unsigned long oldest_time = __LONG_MAX__;
 
             for (int i = 0; i < TLB_SIZE; i++) {
-                if (!tlb[i].valid && empty_index == -1) {
-                    empty_index = i;
-                } else if (tlb[i].valid && tlb[i].last_used_time < lru_time) {
-                    lru_time = tlb[i].last_used_time;
+                if (!tlb[i].valid && empty_slot == -1) {
+                    empty_slot = i;
+                } else if (tlb[i].valid && tlb[i].last_used_time < oldest_time) {
+                    oldest_time = tlb[i].last_used_time;
                     lru_index = i;
                 }
             }
 
-            int index_to_replace = (empty_index != -1) ? empty_index : lru_index;
+            int slot = (empty_slot != -1) ? empty_slot : lru_index;
 
-            if (empty_index == -1) {
+            if (empty_slot == -1) {
                 evicting = 1;
                 evicted_page = tlb[lru_index].page_number;
             }
 
-            tlb[index_to_replace].valid = 1;
-            tlb[index_to_replace].page_number = page_number;
-            tlb[index_to_replace].frame_number = frame_number;
-            tlb[index_to_replace].last_used_time = time_counter;
+            tlb[slot].valid = 1;
+            tlb[slot].page_number = page_number;
+            tlb[slot].frame_number = frame_number;
+            tlb[slot].last_used_time = time_counter;
         }
 
-        // === Physical Address ===
+        // calculate physical address
         unsigned int physical_address = (frame_number << OFFSET_BITS) | offset;
 
-        // === Correct Output Section ===
+        // ===== Output results =====
 
-        // Step 1: TLB Lookup Result
+        // was it a tlb hit?
         if (tlb_hit) {
             printf("tlb-hit=1,page-number=%u,frame=%u,physical-address=%u\n", page_number, frame_number, physical_address);
         } else {
@@ -330,7 +333,7 @@ void task4(FILE *fp) {
         }
         fflush(stdout);
 
-        // Step 2: TLB Remove/Add
+        // if tlb miss, we may have added/removed
         if (!tlb_hit) {
             if (evicting) {
                 printf("tlb-remove=%u,tlb-add=%u\n", evicted_page, page_number);
@@ -340,8 +343,8 @@ void task4(FILE *fp) {
         }
         fflush(stdout);
 
-        // Step 3: Page Table and Page Fault Result
-        if (!tlb_hit) {  // Only print this if TLB was a miss
+        // print page table lookup results
+        if (!tlb_hit) {
             if (page_fault) {
                 printf("page-number=%u,page-fault=1,frame-number=%u,physical-address=%u\n", page_number, frame_number, physical_address);
             } else {
@@ -351,6 +354,7 @@ void task4(FILE *fp) {
         fflush(stdout);
     }
 }
+
 
 
 
