@@ -5,3 +5,6 @@
 # Ignore editor files
 .vscode/
 .idea/
+
+translate
+translate.exe
