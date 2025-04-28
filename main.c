@@ -231,9 +231,6 @@ void task4(FILE *fp) {
             }
         }
 
-        int evicting = 0;           // Whether we evicted an entry in TLB
-        unsigned int evicted_page = 0; // Evicted page number
-
         if (!tlb_hit) {
             // === Page Table Lookup ===
             if (page_table[page_number].present) {
@@ -259,27 +256,22 @@ void task4(FILE *fp) {
                     page_table[page_to_evict].present = 0; // mark evicted page as not present
 
                     // --- TLB flush: Remove evicted page from TLB if present ---
-                    int flushed = 0;
                     for (int i = 0; i < TLB_SIZE; i++) {
                         if (tlb[i].valid && tlb[i].page_number == page_to_evict) {
                             tlb[i].valid = 0; // Invalidate TLB entry
-                            flushed = 1;
+
+                            // After invalidation, count how many valid entries remain
+                            int valid_entries = 0;
+                            for (int j = 0; j < TLB_SIZE; j++) {
+                                if (tlb[j].valid) {
+                                    valid_entries++;
+                                }
+                            }
+
+                            printf("tlb-flush=%u,tlb-size=%d\n", page_to_evict, valid_entries);
                             break;
                         }
                     }
-
-                    // If we flushed, print tlb-flush message
-                    if (flushed) {
-                        int tlb_valid_entries = 0;
-                        for (int i = 0; i < TLB_SIZE; i++) {
-                            if (tlb[i].valid) {
-                                tlb_valid_entries++;
-                            }
-                        }
-                        printf("tlb-flush=%u,tlb-size=%d\n", page_to_evict, tlb_valid_entries);
-                        fflush(stdout);
-                    }
-
 
                     // Load new page into freed frame
                     frame_number = evicted_frame;
@@ -306,11 +298,6 @@ void task4(FILE *fp) {
 
             int index_to_replace = (empty_index != -1) ? empty_index : lru_index;
 
-            if (empty_index == -1) {
-                evicting = 1;
-                evicted_page = tlb[lru_index].page_number;
-            }
-
             tlb[index_to_replace].valid = 1;
             tlb[index_to_replace].page_number = page_number;
             tlb[index_to_replace].frame_number = frame_number;
@@ -328,17 +315,11 @@ void task4(FILE *fp) {
         } else {
             printf("tlb-hit=0,page-number=%u,frame=none,physical-address=none\n", page_number);
         }
-        fflush(stdout);
 
         // Step 2: TLB Remove/Add
         if (!tlb_hit) {
-            if (evicting) {
-                printf("tlb-remove=%u,tlb-add=%u\n", evicted_page, page_number);
-            } else {
-                printf("tlb-remove=none,tlb-add=%u\n", page_number);
-            }
+            printf("tlb-remove=none,tlb-add=%u\n", page_number);
         }
-        fflush(stdout);
 
         // Step 3: Page Table and Page Fault Result
         if (!tlb_hit) {  // Only print this if TLB was a miss
@@ -348,9 +329,9 @@ void task4(FILE *fp) {
                 printf("page-number=%u,page-fault=0,frame-number=%u,physical-address=%u\n", page_number, frame_number, physical_address);
             }
         }
-        fflush(stdout);
     }
 }
+
 
 
 
