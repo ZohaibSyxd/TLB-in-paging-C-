@@ -277,6 +277,7 @@ void task4(FILE *fp) {
                             }
                         }
                         printf("tlb-flush=%u,tlb-size=%d\n", page_to_evict, tlb_valid_entries);
+                        fflush(stdout);
                     }
 
 
@@ -327,6 +328,7 @@ void task4(FILE *fp) {
         } else {
             printf("tlb-hit=0,page-number=%u,frame=none,physical-address=none\n", page_number);
         }
+        fflush(stdout);
 
         // Step 2: TLB Remove/Add
         if (!tlb_hit) {
@@ -336,6 +338,7 @@ void task4(FILE *fp) {
                 printf("tlb-remove=none,tlb-add=%u\n", page_number);
             }
         }
+        fflush(stdout);
 
         // Step 3: Page Table and Page Fault Result
         if (!tlb_hit) {  // Only print this if TLB was a miss
@@ -345,6 +348,7 @@ void task4(FILE *fp) {
                 printf("page-number=%u,page-fault=0,frame-number=%u,physical-address=%u\n", page_number, frame_number, physical_address);
             }
         }
+        fflush(stdout);
     }
 }
 
