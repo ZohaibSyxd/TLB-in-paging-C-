@@ -81,8 +81,8 @@ void task1(FILE *fp) {
 // === TASK 2 ===
 // Page Table Implementation and Initial Frame Al-location
 void task2(FILE *fp) {
-    page_table_entry_t page_table[PAGE_TABLE_SIZE] = {0}; // Initialize all entries to {0, 0}
-    unsigned int next_free_frame = 0; // Keep track of next free frame
+    page_table_entry_t page_table[PAGE_TABLE_SIZE] = {0};   // Initialize all entries to {0, 0}
+    unsigned int next_free_frame = 0;   // Keep track of next free frame
 
     unsigned int address;
     unsigned int page_number;
@@ -120,67 +120,76 @@ void task2(FILE *fp) {
     }
 }
 
-#define MAX_FRAMES 256
-
+// === TASK 3 ===
+// FIFO Page Replacement Algorithm
 void task3(FILE *fp) {
-    page_table_entry_t page_table[PAGE_TABLE_SIZE] = {0}; 
-    unsigned int page_order[MAX_FRAMES];     // simple FIFO queue: stores pages in order loaded
-    unsigned int head = 0, tail = 0;          // indices for FIFO
+    page_table_entry_t page_table[PAGE_TABLE_SIZE] = {0};   // Initialize all entries to {0, 0}
+    unsigned int page_order[MAX_FRAMES];    // Circular FIFO queue to track the order pages are loaded
+    
+    // head and tail pointers for the FIFO queue
+    unsigned int head = 0;
+    unsigned int tail = 0;
 
-    unsigned int next_free_frame = 0;
+    unsigned int next_free_frame = 0;   // Keep track of next free frame
     unsigned int address;
     unsigned int page_number;
     unsigned int offset;
 
+    // Process each logical address
     while (fscanf(fp, "%u", &address) == 1) {
-        parse_logical_address(address, &page_number, &offset);
+        parse_logical_address(address, &page_number, &offset); // split address into page number and offset
         printf("logical-address=%u,page-number=%u,offset=%u\n", address, page_number, offset);
+        
+        // Assume no page fault initialy
+        int page_fault = 0;                   // flag for whether a page fault occurred
+        unsigned int frame_number;            // frame number where the page is loaded
 
-        int page_fault = 0;
-        unsigned int frame_number;
-
-        if (page_table[page_number].present) {
-            // Page hit
+        if (page_table[page_number].present) { // present == 1
+            // Page is already loaded into memory
             frame_number = page_table[page_number].frame_number;
             page_fault = 0;
-        } else {
-            // Page fault
+        } else { // present == 0
+            // Page fault: load into memory and allocate next free frame
             page_fault = 1;
 
             if (next_free_frame < MAX_FRAMES) {
-                // Free frames available
+                // There is an available free frame, repeat same as task 2
                 frame_number = next_free_frame;
                 page_table[page_number].present = 1;
                 page_table[page_number].frame_number = frame_number;
-                page_order[tail] = page_number;
-                tail = (tail + 1) % MAX_FRAMES;
-                next_free_frame++;
+                page_order[tail] = page_number; // add page to tail of queue
+                tail = (tail + 1) % MAX_FRAMES; // move tail one down for next frame and if it is at the end wrap around back to the beginning(circular)
+                next_free_frame++;             // move to next free frame
             } else {
-                // No free frames: FIFO eviction
-                unsigned int page_to_evict = page_order[head];
-                head = (head + 1) % MAX_FRAMES;
+                // No free frames available: evict a page using FIFO
+                unsigned int page_to_evict = page_order[head]; // page at the front of FIFO queue
+                head = (head + 1) % MAX_FRAMES; // move head one down for next frame and if it is at the end wrap around back to the beginning(circular)
                 unsigned int evicted_frame = page_table[page_to_evict].frame_number;
 
-                // Eviction happens here:
+                // Print eviction information
                 printf("evicted-page=%u,freed-frame=%u\n", page_to_evict, evicted_frame);
 
-                page_table[page_to_evict].present = 0;
+                page_table[page_to_evict].present = 0; // mark evicted page as not present
 
+                // Load new page into the freed frame
                 frame_number = evicted_frame;
                 page_table[page_number].present = 1;
                 page_table[page_number].frame_number = frame_number;
-                page_order[tail] = page_number;
-                tail = (tail + 1) % MAX_FRAMES;
+                page_order[tail] = page_number; // add new page to FIFO queue
+                tail = (tail + 1) % MAX_FRAMES; // move tail one down for next frame and if it is at the end wrap around back to the beginning(circular)
             }
         }
 
+        // Extract the physical address:
+        // - Shift left by 12 bits
+        // - Add the offset into the lower 12 bits of the address
         unsigned int physical_address = (frame_number << OFFSET_BITS) | offset;
 
+        // Print page translation and result
         printf("page-number=%u,page-fault=%d,frame-number=%u,physical-address=%u\n",
                page_number, page_fault, frame_number, physical_address);
     }
 }
-
 
 
 // Function to parse a logical address into page number and offset
