@@ -1,4 +1,6 @@
-COMP30023 2025 - Project 1
+# TLB in Paging - C Implementation
+
+This project simulates a **Translation Lookaside Buffer (TLB)** in a virtual memory paging system, written in C. It demonstrates how virtual addresses are translated to physical addresses using a TLB and page table mechanism, commonly used in operating systems.
 
 ./translate -f cases/task1/spec.txt -t task1 | diff - cases/task1/spec.out
 ./translate -f cases/task1/spec-mask.txt -t task1 | diff - cases/task1/spec-mask.out
